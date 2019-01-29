@@ -24,9 +24,6 @@ REQUIREMENTS = ['feedparser']
 
 CONF_NAME = 'name'
 CONF_FEED_URL = 'feed_url'
-CONF_DATE_FORMAT = 'date_format'
-CONF_INCLUSIONS = 'inclusions'
-CONF_EXCLUSIONS = 'exclusions'
 
 DEFAULT_SCAN_INTERVAL = timedelta(hours=1)
 
@@ -37,9 +34,6 @@ ICON = 'mdi:rss'
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Required(CONF_NAME): cv.string,
     vol.Required(CONF_FEED_URL): cv.string,
-    vol.Required(CONF_DATE_FORMAT, default='%a, %b %d %I:%M %p'): cv.string,
-    vol.Optional(CONF_INCLUSIONS, default=[]): vol.All(cv.ensure_list, [cv.string]),
-    vol.Optional(CONF_EXCLUSIONS, default=[]): vol.All(cv.ensure_list, [cv.string]),
 })
 
 def setup_platform(hass, config, add_devices, discovery_info=None):
@@ -50,9 +44,6 @@ class FeedParserSensor(Entity):
         self.hass = hass
         self._feed = config[CONF_FEED_URL]
         self._name = config[CONF_NAME]
-        self._date_format = config[CONF_DATE_FORMAT]
-        self._inclusions = config[CONF_INCLUSIONS]
-        self._exclusions = config[CONF_EXCLUSIONS]
         self._state = None
         self.hass.data[self._name] = {}
         self.update()
@@ -65,24 +56,7 @@ class FeedParserSensor(Entity):
             return False
         else:
             self._state = len(parsedFeed.entries)
-            self.hass.data[self._name] = {}
-
-            for entry in parsedFeed.entries:
-                title = entry['title'] if entry['title'] else entry['description']
-
-                if not title:
-                  continue
-
-                self.hass.data[self._name][title] = {}
-
-                for key, value in entry.items():
-                  if (self._inclusions and key not in self._inclusions) or ('parsed' in key) or (key in self._exclusions):
-                    continue
-
-                  if key in ['published', 'updated', 'created', 'expired']:
-                    value = parser.parse(value).replace(tzinfo=None).strftime(self._date_format)
-
-                  self.hass.data[self._name][title][key] = value
+            self.hass.data[self._name] = parsedFeed
 
     @property
     def name(self):
@@ -98,4 +72,6 @@ class FeedParserSensor(Entity):
 
     @property
     def device_state_attributes(self):
-        return self.hass.data[self._name]
+        attrs = {}
+        attrs['rss'] = self.hass.data[self._name]
+        return attrs
